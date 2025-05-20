@@ -28,15 +28,25 @@ def remove_plusmin_pl(df):
         new_col_names[col] = new_name
     return(df.rename(new_col_names))
 
-def lag_cols_pl(df, lags, cols_to_lag):
-    df = (df.sort('date')
+def lag_cols_pl(df, periods, cols_to_lag):
+    df = (df.sort(["store_nbr","family","date"])
           .with_columns(
               [
-                  pl.col(col).shift(t).fill_null(strategy="backward").alias(f"{col}_t{t}")
+                  pl.col(col).shift(p).over(["store_nbr", "family"]).fill_null(strategy="backward").alias(f"{col}_lag{p}")
                   for col in cols_to_lag
-                  for t in lags
+                  for p in periods
               ]
           )
     )
     return df
 
+def MA_pl(df, periods, cols):
+    expressions = []
+    for col in cols:
+        for p in periods:
+            avg_expr = pl.col(col).rolling_mean(p).over(["store_nbr", "family"]).fill_null(strategy="backward").alias(f"{col}_avg_t{p}")
+            std_expr = pl.col(col).rolling_std(p).over(["store_nbr", "family"]).fill_null(strategy="backward").alias(f"{col}_std_t{p}")
+
+            expressions.extend([avg_expr, std_expr])
+    return(df.sort(["store_nbr", "family", "date"]).with_columns(expressions))
+    
